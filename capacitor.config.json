@@ -1,0 +1,23 @@
+{
+  "appId": "com.schedule.app",
+  "appName": "Schedule_",
+  "webDir": "www",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#ffffffff",
+      "androidScaleType": "CENTER_CROP"
+    }
+  },
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": [
+      "192.168.*.*"    ]
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

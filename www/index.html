@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Schedule</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <header class="topbar">
+      <h1 class="logo">SCHEDULE<span class="accent">_</span></h1>
+      <div class="topbar-actions">
+        <span id="syncStatus" class="sync-status" title="Tap to re-sync">—</span>
+        <button id="refreshBtn" class="icon-btn" aria-label="Refresh">⟳</button>
+        <button id="settingsBtn" class="icon-btn" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+
+    <nav class="view-tabs">
+      <button class="view-tab active" data-view="schedule">Schedule</button>
+      <button class="view-tab" data-view="manage">Manage</button>
+      <button class="view-tab" data-view="activity">Activity</button>
+    </nav>
+
+    <!-- SCHEDULE VIEW -->
+    <section id="scheduleView" class="view">
+      <div id="upcomingExamCard" class="stat-card hidden">
+        <div class="stat-top">
+          <span>Next Exam</span>
+          <span class="id-tag exam" id="upcomingExamTag">EXM-01</span>
+        </div>
+        <div class="stat-value" id="upcomingExamDays">—</div>
+        <div class="stat-sub" id="upcomingExamSub"></div>
+      </div>
+
+      <div class="week-nav">
+        <button id="prevWeekBtn" class="week-nav-btn" aria-label="Previous week">‹</button>
+        <span id="weekLabel" class="week-label">This Week</span>
+        <button id="todayJumpBtn" class="week-today-btn hidden">Today</button>
+        <button id="nextWeekBtn" class="week-nav-btn" aria-label="Next week">›</button>
+      </div>
+
+      <div class="day-tabs" id="dayTabs"></div>
+      <div class="class-list" id="classList">
+        <p class="empty-state">Loading…</p>
+      </div>
+
+      <div class="section-header">Events</div>
+      <div class="event-list" id="eventList"></div>
+    </section>
+
+    <!-- ACTIVITY VIEW -->
+    <section id="activityView" class="view hidden">
+      <div class="section-header" style="padding-top:4px">Recent Activity</div>
+      <div class="activity-list" id="activityList"></div>
+    </section>
+
+    <!-- MANAGE VIEW -->
+    <section id="manageView" class="view hidden">
+      <div class="section-header" style="padding-top:4px">Classes</div>
+      <button id="addSessionBtn" class="primary-btn">+ Add Class</button>
+      <div class="session-list" id="sessionList"></div>
+
+      <div class="section-header">Events</div>
+      <button id="addEventBtn" class="primary-btn">+ Add Event</button>
+      <div class="manage-event-list" id="manageEventList"></div>
+    </section>
+
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Server Settings</h2>
+      <label>Server URL
+        <input type="text" id="serverUrlInput" placeholder="https://your-tunnel-url.example.com" />
+      </label>
+      <label>API Key
+        <input type="password" id="apiKeyInput" placeholder="Your API key" />
+      </label>
+      <div class="modal-actions">
+        <button id="settingsCancelBtn" class="ghost-btn">Cancel</button>
+        <button id="settingsSaveBtn" class="primary-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD/EDIT SESSION MODAL -->
+  <div id="sessionModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="sessionModalTitle">Add Class</h2>
+      <input type="hidden" id="sessionIdInput" />
+      <label>Course
+        <input type="text" id="courseInput" placeholder="e.g. MATH113: Discrete Mathematics" />
+      </label>
+      <label>Type
+        <select id="typeInput">
+          <option value="lecture">Lecture</option>
+          <option value="tutorial">Tutorial</option>
+          <option value="lab">Lab</option>
+        </select>
+      </label>
+      <label>Day
+        <select id="dayInput">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+      </label>
+      <div class="time-row">
+        <label>Start
+          <input type="time" id="startTimeInput" />
+        </label>
+        <label>End
+          <input type="time" id="endTimeInput" />
+        </label>
+      </div>
+      <label>Room
+        <input type="text" id="roomInput" placeholder="e.g. B204" />
+      </label>
+      <label>Instructor Name
+        <input type="text" id="instructorNameInput" placeholder="e.g. Dr. Ahmed Hassan" />
+      </label>
+      <label>Instructor Email
+        <input type="email" id="instructorEmailInput" placeholder="e.g. a.hassan@nu.edu.eg" />
+      </label>
+      <div class="modal-actions">
+        <button id="deleteSessionBtn" class="danger-btn hidden">Delete</button>
+        <button id="sessionCancelBtn" class="ghost-btn">Cancel</button>
+        <button id="sessionSaveBtn" class="primary-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD/EDIT EVENT MODAL -->
+  <div id="eventModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="eventModalTitle">Add Event</h2>
+      <input type="hidden" id="eventIdInput" />
+      <label>Title
+        <input type="text" id="eventTitleInput" placeholder="e.g. MATH113 Midterm" />
+      </label>
+      <label>Category
+        <select id="eventCategoryInput">
+          <option value="exam">Exam</option>
+          <option value="personal">Personal</option>
+          <option value="deadline">Deadline</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Date
+        <input type="date" id="eventDateInput" />
+      </label>
+      <div class="time-row">
+        <label>Start
+          <input type="time" id="eventStartTimeInput" />
+        </label>
+        <label>End (optional)
+          <input type="time" id="eventEndTimeInput" />
+        </label>
+      </div>
+      <label>Course (optional)
+        <input type="text" id="eventCourseInput" placeholder="e.g. MATH113" />
+      </label>
+      <label>Note (optional)
+        <input type="text" id="eventNoteInput" placeholder="e.g. Bring calculator" />
+      </label>
+      <div class="modal-actions">
+        <button id="deleteEventBtn" class="danger-btn hidden">Delete</button>
+        <button id="eventCancelBtn" class="ghost-btn">Cancel</button>
+        <button id="eventSaveBtn" class="primary-btn" style="width:auto;margin:0">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLASS ACTIONS MODAL (cancel / reschedule / undo, in-app) -->
+  <div id="actionModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="actionModalTitle">Class Actions</h2>
+      <p class="class-meta" id="actionModalSubtitle" style="margin-bottom:16px"></p>
+
+      <div id="actionButtons">
+        <button id="actionCancelDayBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Cancel This Day</button>
+        <button id="actionRescheduleBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Reschedule This Day</button>
+        <button id="actionUndoBtn" class="ghost-btn hidden" style="width:100%;margin-bottom:8px">Undo This Change</button>
+        <button id="actionEditRecurringBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Edit Recurring Class</button>
+      </div>
+
+      <div id="rescheduleForm" class="hidden">
+        <label>New date (leave unchanged for a same-day time/room change)
+          <input type="date" id="actionNewDateInput" />
+        </label>
+        <div class="time-row">
+          <label>Start <input type="time" id="actionNewStartInput" /></label>
+          <label>End <input type="time" id="actionNewEndInput" /></label>
+        </div>
+        <label>Room (optional)
+          <input type="text" id="actionNewRoomInput" />
+        </label>
+        <label>Note (optional)
+          <input type="text" id="actionNoteInput" />
+        </label>
+        <div class="modal-actions">
+          <button id="rescheduleBackBtn" class="ghost-btn">Back</button>
+          <button id="rescheduleSaveBtn" class="primary-btn" style="width:auto;margin:0">Save</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="actionCloseBtn" class="ghost-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
