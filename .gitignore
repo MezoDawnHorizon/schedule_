@@ -2,3 +2,4 @@
 /.vscode
 /android
 /node_modules
+.venv
