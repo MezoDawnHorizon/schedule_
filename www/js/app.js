@@ -1207,6 +1207,62 @@ function closeSessionModal() {
   document.getElementById("sessionModal").classList.add("hidden");
 }
 
+// ---------------------------------------------------------------------------
+// Modal dismissal — tapping outside a modal, or the Android hardware/gesture
+// back button, should close it, same as hitting Close/Cancel/×.
+// ---------------------------------------------------------------------------
+
+function setupBackdropDismiss(modalId, closeFn) {
+  const modal = document.getElementById(modalId);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeFn();
+  });
+}
+
+// Returns true if it handled something (closed a modal / stepped back a
+// sub-view), so the caller knows whether to fall through to app-exit.
+function closeAnyOpenModal() {
+  const actionModal = document.getElementById("actionModal");
+  const rescheduleForm = document.getElementById("rescheduleForm");
+  if (!actionModal.classList.contains("hidden") && !rescheduleForm.classList.contains("hidden")) {
+    // Mid-reschedule-form: step back to the action list first, same as the
+    // Back button, rather than closing everything in one go.
+    rescheduleForm.classList.add("hidden");
+    document.getElementById("actionButtons").classList.remove("hidden");
+    return true;
+  }
+
+  const modals = [
+    ["settingsModal", closeSettingsModal],
+    ["sessionModal", closeSessionModal],
+    ["eventModal", closeEventModal],
+    ["actionModal", closeActionModal],
+  ];
+  for (const [id, closeFn] of modals) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains("hidden")) {
+      closeFn();
+      return true;
+    }
+  }
+  return false;
+}
+
+function setupBackButtonHandler() {
+  const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  const AppPlugin = isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!AppPlugin) return; // web/dev preview — browser back behaves normally
+
+  AppPlugin.addListener("backButton", () => {
+    if (closeAnyOpenModal()) return;
+    if (document.getElementById("scheduleView").classList.contains("hidden")) {
+      switchView("schedule");
+    } else {
+      AppPlugin.exitApp();
+    }
+  });
+}
+
 function saveSessionFromModal() {
   const id = document.getElementById("sessionIdInput").value;
   const payload = {
@@ -1294,6 +1350,12 @@ async function init() {
 
   document.getElementById("settingsBtn").addEventListener("click", openSettingsModal);
   document.getElementById("settingsCancelBtn").addEventListener("click", closeSettingsModal);
+
+  setupBackdropDismiss("settingsModal", closeSettingsModal);
+  setupBackdropDismiss("sessionModal", closeSessionModal);
+  setupBackdropDismiss("eventModal", closeEventModal);
+  setupBackdropDismiss("actionModal", closeActionModal);
+  setupBackButtonHandler();
   document.getElementById("notifToggle").addEventListener("click", () => {
     document.getElementById("notifToggle").classList.toggle("on");
   });
