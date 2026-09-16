@@ -8,7 +8,29 @@ const STORAGE_KEYS = {
   cachedFull: "schedule_cached_full",
   lastSync: "schedule_last_sync",
   outbox: "schedule_outbox",
+  notifyEnabled: "schedule_notify_enabled",
+  notifyLead: "schedule_notify_lead",
+  notifyIds: "schedule_notify_ids",
+  notifyFingerprint: "schedule_notify_fingerprint",
+  welcomeDismissed: "schedule_welcome_dismissed",
 };
+
+// ---------------------------------------------------------------------------
+// HTML escaping — every piece of user-entered text (course names, notes,
+// titles, instructor info, ...) gets rendered via innerHTML for layout
+// convenience, so it has to be escaped first. Never interpolate raw fields
+// into a template string that ends up in innerHTML.
+// ---------------------------------------------------------------------------
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function getServerUrl() {
   return localStorage.getItem(STORAGE_KEYS.serverUrl) || "";
@@ -194,6 +216,9 @@ async function drainOutbox() {
 let syncInProgress = false;
 
 async function attemptSync() {
+  // Runs regardless of whether a server is configured — reminders are a
+  // fully local feature and shouldn't depend on sync being set up.
+  scheduleUpcomingNotificationsIfEnabled();
   if (syncInProgress || !getServerUrl()) return;
   syncInProgress = true;
   try {
@@ -209,6 +234,240 @@ async function attemptSync() {
     syncInProgress = false;
     updateSyncStatus();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Local notifications — class & event reminders, scheduled entirely
+// on-device via @capacitor/local-notifications. No server or connectivity
+// involved; this only runs when installed as the native Android app.
+// ---------------------------------------------------------------------------
+
+function getNotifPlugin() {
+  return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+}
+
+function isNotifSupported() {
+  return !!(
+    window.Capacitor &&
+    window.Capacitor.isNativePlatform &&
+    window.Capacitor.isNativePlatform() &&
+    getNotifPlugin()
+  );
+}
+
+function getNotifPrefs() {
+  return {
+    enabled: localStorage.getItem(STORAGE_KEYS.notifyEnabled) === "1",
+    leadMinutes: Number(localStorage.getItem(STORAGE_KEYS.notifyLead) || "15"),
+  };
+}
+
+function setNotifPrefs(enabled, leadMinutes) {
+  localStorage.setItem(STORAGE_KEYS.notifyEnabled, enabled ? "1" : "0");
+  localStorage.setItem(STORAGE_KEYS.notifyLead, String(leadMinutes));
+}
+
+async function ensureNotifPermission() {
+  const plugin = getNotifPlugin();
+  if (!plugin) return false;
+  try {
+    const status = await plugin.checkPermissions();
+    if (status.display === "granted") return true;
+    const req = await plugin.requestPermissions();
+    return req.display === "granted";
+  } catch (err) {
+    return false;
+  }
+}
+
+async function cancelAllScheduledNotifications() {
+  const plugin = getNotifPlugin();
+  const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.notifyIds) || "[]");
+  if (plugin && ids.length > 0) {
+    try {
+      await plugin.cancel({ notifications: ids.map((id) => ({ id })) });
+    } catch (err) {
+      // best effort — nothing more we can do if this fails
+    }
+  }
+  localStorage.removeItem(STORAGE_KEYS.notifyIds);
+  localStorage.removeItem(STORAGE_KEYS.notifyFingerprint);
+}
+
+// Deterministic 32-bit positive id from a string, so "this class on this
+// date" always maps to the same notification id and gets replaced rather
+// than duplicated when rescheduled.
+function hashToId(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (Math.abs(hash) % 2000000000) + 1;
+}
+
+const NOTIF_WINDOW_DAYS = 7;
+
+function computeUpcomingNotifications(cache, leadMinutes) {
+  const notifications = [];
+  const now = new Date();
+
+  for (let i = 0; i < NOTIF_WINDOW_DAYS; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dateStr = toDateStr(d);
+
+    resolveScheduleForDate(dateStr, cache).forEach((c) => {
+      if (c.status === "cancelled" || c.status === "moved_away") return;
+      const at = new Date(`${dateStr}T${c.start_time}:00`);
+      at.setMinutes(at.getMinutes() - leadMinutes);
+      if (at <= now) return;
+      notifications.push({
+        id: hashToId(`class-${c.id}-${dateStr}`),
+        title: `${c.course} · ${c.type}`,
+        body: `${formatTime(c.start_time)}${c.room ? " · " + c.room : ""}`,
+        schedule: { at, allowWhileIdle: true },
+      });
+    });
+
+    resolveEventsForDate(dateStr, cache).forEach((e) => {
+      if (!e.start_time) return;
+      const at = new Date(`${dateStr}T${e.start_time}:00`);
+      at.setMinutes(at.getMinutes() - leadMinutes);
+      if (at <= now) return;
+      notifications.push({
+        id: hashToId(`event-${e.id}-${dateStr}`),
+        title: e.title,
+        body: `${formatTime(e.start_time)}${e.course ? " · " + e.course : ""}`,
+        schedule: { at, allowWhileIdle: true },
+      });
+    });
+  }
+
+  return notifications;
+}
+
+async function scheduleUpcomingNotificationsIfEnabled() {
+  const prefs = getNotifPrefs();
+  if (!prefs.enabled || !isNotifSupported()) return;
+
+  const cache = getCache();
+  // Cheap guard: skip the native reschedule call if nothing that affects
+  // the schedule has changed since we last computed this. Any local
+  // mutation or successful sync changes this fingerprint.
+  const fingerprint = JSON.stringify(cache);
+  if (fingerprint === localStorage.getItem(STORAGE_KEYS.notifyFingerprint)) return;
+
+  const plugin = getNotifPlugin();
+  const oldIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.notifyIds) || "[]");
+  const notifications = computeUpcomingNotifications(cache, prefs.leadMinutes);
+
+  try {
+    if (oldIds.length > 0) {
+      await plugin.cancel({ notifications: oldIds.map((id) => ({ id })) });
+    }
+    if (notifications.length > 0) {
+      await plugin.schedule({ notifications });
+    }
+    localStorage.setItem(STORAGE_KEYS.notifyIds, JSON.stringify(notifications.map((n) => n.id)));
+    localStorage.setItem(STORAGE_KEYS.notifyFingerprint, fingerprint);
+  } catch (err) {
+    // permission revoked, plugin not synced, etc. — leave state as-is and
+    // retry on the next data change
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Backup & restore — the only safety net for data that otherwise lives
+// solely in this device's local storage.
+// ---------------------------------------------------------------------------
+
+function buildBackupPayload() {
+  const cache = getCache();
+  return JSON.stringify(
+    {
+      format: "mezoschedule-backup",
+      version: 1,
+      exported_at: new Date().toISOString(),
+      sessions: cache.sessions,
+      overrides: cache.overrides,
+      events: cache.events,
+    },
+    null,
+    2
+  );
+}
+
+async function exportData() {
+  const payload = buildBackupPayload();
+  const filename = `schedule-backup-${toDateStr(new Date())}.json`;
+
+  const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  const Filesystem = isNative && window.Capacitor.Plugins.Filesystem;
+  const Share = isNative && window.Capacitor.Plugins.Share;
+
+  if (Filesystem && Share) {
+    try {
+      const result = await Filesystem.writeFile({
+        path: filename,
+        data: payload,
+        directory: "CACHE",
+        encoding: "utf8",
+      });
+      await Share.share({ title: "Schedule backup", url: result.uri });
+      return;
+    } catch (err) {
+      alert("Couldn't export: " + (err && err.message ? err.message : err));
+      return;
+    }
+  }
+
+  // Browser fallback (e.g. testing via the FastAPI dev server in a desktop browser)
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (err) {
+      alert("That file isn't valid JSON.");
+      return;
+    }
+    if (!data || !Array.isArray(data.sessions) || !Array.isArray(data.overrides) || !Array.isArray(data.events)) {
+      alert("That doesn't look like a schedule backup file.");
+      return;
+    }
+
+    const pending = getOutbox().length;
+    const warning = pending > 0
+      ? `You have ${pending} unsynced change${pending === 1 ? "" : "s"} that ${pending === 1 ? "hasn't" : "haven't"} reached the server yet — importing will discard them. `
+      : "";
+    if (!confirm(`${warning}This replaces everything currently on this device with the backup. Continue?`)) {
+      return;
+    }
+
+    saveCacheOnly({ sessions: data.sessions, overrides: data.overrides, events: data.events });
+    setOutbox([]);
+    localStorage.removeItem(STORAGE_KEYS.lastSync);
+
+    renderDayTabs();
+    refreshAllViews();
+    updateSyncStatus();
+    scheduleUpcomingNotificationsIfEnabled();
+    alert("Import complete.");
+  };
+  reader.onerror = () => alert("Couldn't read that file.");
+  reader.readAsText(file);
 }
 
 function refreshAllViews() {
@@ -380,7 +639,26 @@ function formatTime(t) {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+function renderWelcomeCard() {
+  const card = document.getElementById("welcomeCard");
+  const cache = getCache();
+  const hasData = cache.sessions.length > 0 || cache.events.length > 0;
+  const dismissed = localStorage.getItem(STORAGE_KEYS.welcomeDismissed) === "1";
+  card.classList.toggle("hidden", hasData || dismissed);
+}
+
+function classStatusInfo(c) {
+  let statusText = "";
+  let statusTone = "tone-dim";
+  if (c.status === "cancelled") { statusText = "Cancelled" + (c.note ? ` — ${escapeHtml(c.note)}` : ""); statusTone = "tone-red"; }
+  if (c.status === "rescheduled") { statusText = "Time/room changed" + (c.note ? ` — ${escapeHtml(c.note)}` : ""); statusTone = "tone-amber"; }
+  if (c.status === "moved_away") { statusText = `Moved to ${escapeHtml(c.moved_to)}` + (c.note ? ` — ${escapeHtml(c.note)}` : ""); statusTone = "tone-dim"; }
+  if (c.status === "moved_in") { statusText = "Moved from another day" + (c.note ? ` — ${escapeHtml(c.note)}` : ""); statusTone = "tone-amber"; }
+  return { statusText, statusTone };
+}
+
 function renderClassList() {
+  renderWelcomeCard();
   const container = document.getElementById("classList");
   const cache = getCache();
   const classes = resolveScheduleForDate(selectedDate, cache);
@@ -398,24 +676,19 @@ function renderClassList() {
     card.addEventListener("click", () => openActionModal(c));
 
     const courseClass = c.status === "cancelled" ? "class-course cancelled-text" : "class-course";
-    let statusText = "";
-    let statusTone = "tone-dim";
-    if (c.status === "cancelled") { statusText = "Cancelled" + (c.note ? ` — ${c.note}` : ""); statusTone = "tone-red"; }
-    if (c.status === "rescheduled") { statusText = "Time/room changed" + (c.note ? ` — ${c.note}` : ""); statusTone = "tone-amber"; }
-    if (c.status === "moved_away") { statusText = `Moved to ${c.moved_to}` + (c.note ? ` — ${c.note}` : ""); statusTone = "tone-dim"; }
-    if (c.status === "moved_in") { statusText = "Moved from another day" + (c.note ? ` — ${c.note}` : ""); statusTone = "tone-amber"; }
+    const { statusText, statusTone } = classStatusInfo(c);
 
     card.innerHTML = `
       <div class="card-top-row">
         <span class="class-time">${formatTime(c.start_time)} – ${formatTime(c.end_time)}</span>
-        <span class="id-tag ${c.type}">${c.type}</span>
+        <span class="id-tag ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
       </div>
-      <div class="${courseClass}">${c.course}</div>
+      <div class="${courseClass}">${escapeHtml(c.course)}</div>
       <div class="class-meta">
-        ${c.room ? `<span>📍 ${c.room}</span>` : ""}
-        ${c.instructor_name ? `<span>${c.instructor_name}</span>` : ""}
+        ${c.room ? `<span>📍 ${escapeHtml(c.room)}</span>` : ""}
+        ${c.instructor_name ? `<span>${escapeHtml(c.instructor_name)}</span>` : ""}
       </div>
-      ${c.instructor_email ? `<div class="class-meta"><a href="mailto:${c.instructor_email}">${c.instructor_email}</a></div>` : ""}
+      ${c.instructor_email ? `<div class="class-meta"><a href="mailto:${escapeHtml(c.instructor_email)}">${escapeHtml(c.instructor_email)}</a></div>` : ""}
       ${statusText ? `<div class="status-note"><span class="status-pill ${statusTone}"><span class="dot"></span>${statusText}</span></div>` : ""}
       <div class="class-meta" style="margin-top:8px;color:var(--text-faint);font-size:11px">Tap to cancel, reschedule, or edit</div>
     `;
@@ -516,14 +789,14 @@ function renderEventList() {
     card.innerHTML = `
       <div class="card-top-row">
         <span class="class-time">${formatTime(e.start_time)}${e.end_time ? " – " + formatTime(e.end_time) : ""}</span>
-        <span class="id-tag ${e.category}">${e.category}</span>
+        <span class="id-tag ${escapeHtml(e.category)}">${escapeHtml(e.category)}</span>
       </div>
-      <div class="class-course">${e.title}</div>
+      <div class="class-course">${escapeHtml(e.title)}</div>
       <div class="class-meta">
-        ${e.course ? `<span>${e.course}</span>` : ""}
+        ${e.course ? `<span>${escapeHtml(e.course)}</span>` : ""}
         ${e.category === "exam" ? `<span class="status-pill ${urgencyTone(days)}"><span class="dot"></span>${daysLabel(days)}</span>` : ""}
       </div>
-      ${e.note ? `<div class="class-meta"><span>${e.note}</span></div>` : ""}
+      ${e.note ? `<div class="class-meta"><span>${escapeHtml(e.note)}</span></div>` : ""}
     `;
     container.appendChild(card);
   });
@@ -546,10 +819,10 @@ function renderManageEventList() {
     row.className = "session-row";
     row.innerHTML = `
       <div class="session-info">
-        <div class="course">${e.title} · ${e.category}</div>
+        <div class="course">${escapeHtml(e.title)} · ${escapeHtml(e.category)}</div>
         <div class="meta">${dateLabel} · ${formatTime(e.start_time)}</div>
       </div>
-      <span class="id-tag ${e.category}">${e.category}</span>
+      <span class="id-tag ${escapeHtml(e.category)}">${escapeHtml(e.category)}</span>
     `;
     row.addEventListener("click", () => openEventModal(e));
     container.appendChild(row);
@@ -630,7 +903,23 @@ function openActionModal(c) {
   );
   actionContext = { sessionId: c.id, date: selectedDate, existingOverrideId: existing ? existing.id : null };
 
+  document.getElementById("actionModalTime").textContent = `${formatTime(c.start_time)} – ${formatTime(c.end_time)}`;
+  const typeTag = document.getElementById("actionModalType");
+  typeTag.textContent = c.type;
+  typeTag.className = `id-tag ${c.type}`;
   document.getElementById("actionModalTitle").textContent = c.course;
+
+  const metaParts = [];
+  if (c.room) metaParts.push(`📍 ${escapeHtml(c.room)}`);
+  if (c.instructor_name) metaParts.push(escapeHtml(c.instructor_name));
+  document.getElementById("actionModalMeta").innerHTML = metaParts.map((p) => `<span>${p}</span>`).join("");
+
+  const statusWrap = document.getElementById("actionModalStatusWrap");
+  const { statusText, statusTone } = classStatusInfo(c);
+  statusWrap.innerHTML = statusText
+    ? `<div class="status-note"><span class="status-pill ${statusTone}"><span class="dot"></span>${statusText}</span></div>`
+    : "";
+
   const weekday = DAY_NAMES_FULL[dayOfWeekForDate(new Date(selectedDate + "T00:00:00"))];
   document.getElementById("actionModalSubtitle").textContent = `${weekday}, ${selectedDate}`;
 
@@ -745,7 +1034,7 @@ function renderActivityList() {
 
   cache.overrides.forEach((o) => {
     const session = cache.sessions.find((s) => s.id === o.session_id);
-    const courseName = session ? session.course : "Unknown class";
+    const courseName = escapeHtml(session ? session.course : "Unknown class");
     let desc;
     if (o.status === "cancelled") {
       desc = `${courseName} cancelled — ${o.original_date}`;
@@ -760,7 +1049,7 @@ function renderActivityList() {
   cache.events.forEach((e) => {
     items.push({
       kind: "event",
-      desc: `${e.title} added — ${e.date}`,
+      desc: `${escapeHtml(e.title)} added — ${e.date}`,
       note: e.note,
       source: e.source,
       updated_at: e.updated_at,
@@ -785,7 +1074,7 @@ function renderActivityList() {
         ${item.source === "agent" ? `<span class="agent-tag">agent</span>` : ""}
         <div>
           <div class="activity-desc">${item.desc}</div>
-          ${item.note ? `<div class="activity-note">${item.note}</div>` : ""}
+          ${item.note ? `<div class="activity-note">${escapeHtml(item.note)}</div>` : ""}
         </div>
       </div>
       <div class="activity-time">${relativeTime(item.updated_at)}</div>
@@ -823,8 +1112,8 @@ function renderSessionList() {
     row.className = `session-row ${s.active ? "" : "inactive"}`;
     row.innerHTML = `
       <div class="session-info">
-        <div class="course">${s.course} · ${s.type}</div>
-        <div class="meta">${DAY_NAMES_FULL[s.day_of_week]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}${s.room ? " · " + s.room : ""}</div>
+        <div class="course">${escapeHtml(s.course)} · ${escapeHtml(s.type)}</div>
+        <div class="meta">${DAY_NAMES_FULL[s.day_of_week]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}${s.room ? " · " + escapeHtml(s.room) : ""}</div>
       </div>
       <button class="toggle ${s.active ? "on" : ""}" aria-label="Toggle active"></button>
     `;
@@ -850,6 +1139,16 @@ function toggleSessionActive(session) {
 
 function updateSyncStatus() {
   const el = document.getElementById("syncStatus");
+
+  // Nothing is actually "pending" in a meaningful sense if there's no
+  // server to sync to — don't show an alarmed amber state for something
+  // the user never asked to sync.
+  if (!getServerUrl()) {
+    el.style.color = "";
+    el.textContent = "offline";
+    return;
+  }
+
   const pending = getOutbox().length;
   const last = getLastSync();
   let text;
@@ -871,6 +1170,19 @@ function updateSyncStatus() {
 function openSettingsModal() {
   document.getElementById("serverUrlInput").value = getServerUrl();
   document.getElementById("apiKeyInput").value = getApiKey();
+
+  const prefs = getNotifPrefs();
+  document.getElementById("notifToggle").classList.toggle("on", prefs.enabled);
+  document.getElementById("notifLeadInput").value = String(prefs.leadMinutes);
+  const notifRow = document.getElementById("notifSettingsRow");
+  const notifSupported = isNotifSupported();
+  document.getElementById("notifToggle").disabled = !notifSupported;
+  document.getElementById("notifLeadInput").disabled = !notifSupported;
+  notifRow.classList.toggle("disabled", !notifSupported);
+  document.getElementById("notifHint").textContent = notifSupported
+    ? ""
+    : "Only available in the installed Android app.";
+
   document.getElementById("settingsModal").classList.remove("hidden");
 }
 function closeSettingsModal() {
@@ -971,22 +1283,66 @@ async function init() {
   renderUpcomingExamCard();
   updateSyncStatus();
 
-  if (!getServerUrl()) {
-    openSettingsModal();
-  } else {
+  // The app is fully usable with zero setup. Only reach out to a server if
+  // one has already been configured — first launch never blocks on this.
+  if (getServerUrl()) {
     await attemptSync();
     renderDayTabs();
+  } else {
+    scheduleUpcomingNotificationsIfEnabled();
   }
 
   document.getElementById("settingsBtn").addEventListener("click", openSettingsModal);
   document.getElementById("settingsCancelBtn").addEventListener("click", closeSettingsModal);
+  document.getElementById("notifToggle").addEventListener("click", () => {
+    document.getElementById("notifToggle").classList.toggle("on");
+  });
   document.getElementById("settingsSaveBtn").addEventListener("click", async () => {
     const url = document.getElementById("serverUrlInput").value.trim();
     const key = document.getElementById("apiKeyInput").value.trim();
-    if (!url) { alert("Server URL is required."); return; }
-    saveSettings(url, key);
+
+    const notifEnabled = document.getElementById("notifToggle").classList.contains("on");
+    const notifLead = Number(document.getElementById("notifLeadInput").value);
+    setNotifPrefs(notifEnabled, notifLead);
+    if (notifEnabled) {
+      const granted = await ensureNotifPermission();
+      if (!granted) {
+        setNotifPrefs(false, notifLead);
+        document.getElementById("notifToggle").classList.remove("on");
+        alert("Reminders need notification permission — allow it in Android Settings to turn this on.");
+      }
+    } else {
+      await cancelAllScheduledNotifications();
+    }
+
+    // Empty URL means "offline only" — clear any previous server config
+    // rather than blocking the save.
+    saveSettings(url, url ? key : "");
     closeSettingsModal();
-    await attemptSync();
+    if (url) {
+      await attemptSync();
+    } else {
+      scheduleUpcomingNotificationsIfEnabled();
+    }
+  });
+
+  document.getElementById("welcomeDismissBtn").addEventListener("click", () => {
+    localStorage.setItem(STORAGE_KEYS.welcomeDismissed, "1");
+    renderWelcomeCard();
+  });
+  document.getElementById("welcomeAddClassBtn").addEventListener("click", () => {
+    switchView("manage");
+    openSessionModal(null);
+  });
+
+  document.getElementById("exportDataBtn").addEventListener("click", exportData);
+  document.getElementById("importDataBtn").addEventListener("click", () => {
+    document.getElementById("importFileInput").click();
+  });
+  document.getElementById("importFileInput").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) importData(file);
+    e.target.value = "";
   });
 
   document.querySelectorAll(".view-tab").forEach((t) => {

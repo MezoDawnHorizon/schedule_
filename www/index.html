@@ -26,6 +26,16 @@
 
     <!-- SCHEDULE VIEW -->
     <section id="scheduleView" class="view">
+      <div id="welcomeCard" class="welcome-card hidden">
+        <button id="welcomeDismissBtn" class="welcome-dismiss" aria-label="Dismiss">×</button>
+        <div class="welcome-title">Welcome 👋</div>
+        <div class="welcome-body">
+          Everything here works fully offline — no account, no setup. Add your
+          first class to get started, or explore the tabs below.
+        </div>
+        <button id="welcomeAddClassBtn" class="primary-btn" style="margin:14px 0 0">+ Add Your First Class</button>
+      </div>
+
       <div id="upcomingExamCard" class="stat-card hidden">
         <div class="stat-top">
           <span>Next Exam</span>
@@ -73,13 +83,48 @@
   <!-- SETTINGS MODAL -->
   <div id="settingsModal" class="modal hidden">
     <div class="modal-card">
-      <h2>Server Settings</h2>
+      <h2>Settings</h2>
+
+      <div class="settings-section-title">Reminders</div>
+      <div class="settings-row" id="notifSettingsRow">
+        <div>
+          <div class="settings-row-label">Class &amp; event reminders</div>
+          <div class="settings-row-hint" id="notifHint"></div>
+        </div>
+        <button id="notifToggle" class="toggle" aria-label="Toggle reminders"></button>
+      </div>
+      <label>Remind me
+        <select id="notifLeadInput">
+          <option value="0">At the time</option>
+          <option value="5">5 minutes before</option>
+          <option value="15">15 minutes before</option>
+          <option value="30">30 minutes before</option>
+        </select>
+      </label>
+
+      <div class="settings-section-title">Backup</div>
+      <div class="settings-row-hint" style="margin-bottom:10px">
+        Your schedule lives only on this device unless you sync. Export a
+        backup now and then so an uninstall or phone reset can't wipe it.
+      </div>
+      <div class="modal-actions" style="margin-bottom:20px">
+        <button id="exportDataBtn" class="ghost-btn" style="flex:1">Export Data</button>
+        <button id="importDataBtn" class="ghost-btn" style="flex:1">Import Data</button>
+      </div>
+      <input type="file" id="importFileInput" accept="application/json" class="hidden" />
+
+      <div class="settings-section-title">Sync (optional)</div>
+      <div class="settings-row-hint" style="margin-bottom:10px">
+        Leave this blank to use the app fully offline. Only fill it in if
+        you're running your own sync server.
+      </div>
       <label>Server URL
         <input type="text" id="serverUrlInput" placeholder="https://your-tunnel-url.example.com" />
       </label>
       <label>API Key
         <input type="password" id="apiKeyInput" placeholder="Your API key" />
       </label>
+
       <div class="modal-actions">
         <button id="settingsCancelBtn" class="ghost-btn">Cancel</button>
         <button id="settingsSaveBtn" class="primary-btn">Save</button>
@@ -174,22 +219,56 @@
       <div class="modal-actions">
         <button id="deleteEventBtn" class="danger-btn hidden">Delete</button>
         <button id="eventCancelBtn" class="ghost-btn">Cancel</button>
-        <button id="eventSaveBtn" class="primary-btn" style="width:auto;margin:0">Save</button>
+        <button id="eventSaveBtn" class="primary-btn">Save</button>
       </div>
     </div>
   </div>
 
   <!-- CLASS ACTIONS MODAL (cancel / reschedule / undo, in-app) -->
   <div id="actionModal" class="modal hidden">
-    <div class="modal-card">
-      <h2 id="actionModalTitle">Class Actions</h2>
-      <p class="class-meta" id="actionModalSubtitle" style="margin-bottom:16px"></p>
+    <div class="modal-card action-sheet">
+      <button id="actionCloseBtn" class="welcome-dismiss action-sheet-close" aria-label="Close">×</button>
 
-      <div id="actionButtons">
-        <button id="actionCancelDayBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Cancel This Day</button>
-        <button id="actionRescheduleBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Reschedule This Day</button>
-        <button id="actionUndoBtn" class="ghost-btn hidden" style="width:100%;margin-bottom:8px">Undo This Change</button>
-        <button id="actionEditRecurringBtn" class="ghost-btn" style="width:100%;margin-bottom:8px">Edit Recurring Class</button>
+      <div class="action-sheet-header">
+        <div class="card-top-row">
+          <span class="class-time" id="actionModalTime"></span>
+          <span class="id-tag" id="actionModalType"></span>
+        </div>
+        <h2 id="actionModalTitle">Class Actions</h2>
+        <p class="class-meta" id="actionModalSubtitle"></p>
+        <div class="class-meta" id="actionModalMeta"></div>
+        <div id="actionModalStatusWrap"></div>
+      </div>
+
+      <div id="actionButtons" class="action-list">
+        <button id="actionUndoBtn" class="action-row action-row-positive hidden">
+          <span class="action-icon">↺</span>
+          <span class="action-row-text">
+            <span class="action-row-title">Undo This Change</span>
+            <span class="action-row-sub">Restore the normal schedule for this day</span>
+          </span>
+        </button>
+        <button id="actionCancelDayBtn" class="action-row action-row-danger">
+          <span class="action-icon">✕</span>
+          <span class="action-row-text">
+            <span class="action-row-title">Cancel This Day</span>
+            <span class="action-row-sub">Skip just this one occurrence</span>
+          </span>
+        </button>
+        <button id="actionRescheduleBtn" class="action-row action-row-accent">
+          <span class="action-icon">⏱</span>
+          <span class="action-row-text">
+            <span class="action-row-title">Reschedule This Day</span>
+            <span class="action-row-sub">Change the time, room, or date</span>
+          </span>
+        </button>
+        <button id="actionEditRecurringBtn" class="action-row action-row-neutral">
+          <span class="action-icon">✎</span>
+          <span class="action-row-text">
+            <span class="action-row-title">Edit Recurring Class</span>
+            <span class="action-row-sub">Changes every future occurrence</span>
+          </span>
+        </button>
       </div>
 
       <div id="rescheduleForm" class="hidden">
@@ -208,12 +287,8 @@
         </label>
         <div class="modal-actions">
           <button id="rescheduleBackBtn" class="ghost-btn">Back</button>
-          <button id="rescheduleSaveBtn" class="primary-btn" style="width:auto;margin:0">Save</button>
+          <button id="rescheduleSaveBtn" class="primary-btn">Save</button>
         </div>
-      </div>
-
-      <div class="modal-actions">
-        <button id="actionCloseBtn" class="ghost-btn">Close</button>
       </div>
     </div>
   </div>
