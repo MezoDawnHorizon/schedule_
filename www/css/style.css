@@ -438,8 +438,46 @@ body {
 .session-row.inactive { opacity: 0.45; }
 
 .session-info { flex: 1; }
+.session-info .course-row { display: flex; align-items: center; gap: 8px; }
 .session-info .course { font-weight: 600; font-size: 14px; }
 .session-info .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+.session-row.child-row { padding: 10px 12px; }
+
+/* ---------- Course groups (Manage tab, VS Code-folder style) ---------- */
+.course-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.course-group-chevron {
+  font-size: 13px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  transition: transform 0.15s ease;
+}
+.course-group.expanded .course-group-chevron { transform: rotate(90deg); }
+.course-group-icon { font-size: 15px; flex-shrink: 0; }
+.course-group-label { flex: 1; }
+.course-group-title { font-weight: 600; font-size: 14px; }
+.course-group-caption { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+.course-group-children {
+  margin: 8px 0 0 22px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.course-group-children.hidden { display: none; }
 
 .toggle {
   width: 42px;

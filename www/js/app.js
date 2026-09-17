@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   notifyIds: "schedule_notify_ids",
   notifyFingerprint: "schedule_notify_fingerprint",
   welcomeDismissed: "schedule_welcome_dismissed",
+  expandedGroups: "schedule_expanded_groups",
 };
 
 // ---------------------------------------------------------------------------
@@ -1094,35 +1095,106 @@ function renderActivityList() {
 // Manage view — classes
 // ---------------------------------------------------------------------------
 
+const TYPE_ORDER = { lecture: 0, tutorial: 1, lab: 2 };
+
+function getExpandedCourseGroups() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.expandedGroups) || "[]"));
+  } catch (err) {
+    return new Set();
+  }
+}
+
+function setExpandedCourseGroups(set) {
+  localStorage.setItem(STORAGE_KEYS.expandedGroups, JSON.stringify([...set]));
+}
+
+function renderSessionRow(s, extraClass) {
+  const row = document.createElement("div");
+  row.className = `session-row ${s.active ? "" : "inactive"} ${extraClass || ""}`.trim();
+  row.innerHTML = `
+    <div class="session-info">
+      <div class="course-row">
+        <span class="course">${escapeHtml(s.course)}</span>
+        <span class="id-tag ${escapeHtml(s.type)}">${escapeHtml(s.type)}</span>
+      </div>
+      <div class="meta">${DAY_NAMES_FULL[s.day_of_week]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}${s.room ? " · " + escapeHtml(s.room) : ""}</div>
+    </div>
+    <button class="toggle ${s.active ? "on" : ""}" aria-label="Toggle active"></button>
+  `;
+  row.querySelector(".session-info").addEventListener("click", () => openSessionModal(s));
+  row.querySelector(".toggle").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleSessionActive(s);
+  });
+  return row;
+}
+
 function renderSessionList() {
   const container = document.getElementById("sessionList");
   const cache = getCache();
-  const sorted = [...cache.sessions].sort(
-    (a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time)
-  );
 
-  if (sorted.length === 0) {
+  if (cache.sessions.length === 0) {
     container.innerHTML = `<p class="empty-state">No classes added yet.</p>`;
     return;
   }
 
+  // Same course, different session types (lecture/tutorial/lab), get grouped
+  // into one folder-style row so a long list of near-duplicate course names
+  // collapses down to one line each. A course with only one session type
+  // just renders as a normal row — no point wrapping a single item.
+  const groups = new Map();
+  cache.sessions.forEach((s) => {
+    const key = s.course.trim().toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  });
+
+  const entries = [...groups.values()].sort((a, b) => a[0].course.localeCompare(b[0].course));
+  const expanded = getExpandedCourseGroups();
+
   container.innerHTML = "";
-  sorted.forEach((s) => {
-    const row = document.createElement("div");
-    row.className = `session-row ${s.active ? "" : "inactive"}`;
-    row.innerHTML = `
-      <div class="session-info">
-        <div class="course">${escapeHtml(s.course)} · ${escapeHtml(s.type)}</div>
-        <div class="meta">${DAY_NAMES_FULL[s.day_of_week]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}${s.room ? " · " + escapeHtml(s.room) : ""}</div>
+  entries.forEach((sessions) => {
+    if (sessions.length === 1) {
+      container.appendChild(renderSessionRow(sessions[0]));
+      return;
+    }
+
+    const sorted = [...sessions].sort(
+      (a, b) => (TYPE_ORDER[a.type] ?? 3) - (TYPE_ORDER[b.type] ?? 3) || a.day_of_week - b.day_of_week
+    );
+    const key = sorted[0].course.trim().toLowerCase();
+    const isOpen = expanded.has(key);
+    const typesLabel = sorted.map((s) => s.type[0].toUpperCase() + s.type.slice(1)).join(", ");
+
+    const group = document.createElement("div");
+    group.className = `course-group ${isOpen ? "expanded" : ""}`;
+
+    const header = document.createElement("div");
+    header.className = "course-group-header";
+    header.innerHTML = `
+      <span class="course-group-chevron">›</span>
+      <span class="course-group-icon">📁</span>
+      <div class="course-group-label">
+        <div class="course-group-title">${escapeHtml(sorted[0].course)}</div>
+        <div class="course-group-caption">${sorted.length} classes · ${escapeHtml(typesLabel)}</div>
       </div>
-      <button class="toggle ${s.active ? "on" : ""}" aria-label="Toggle active"></button>
     `;
-    row.querySelector(".session-info").addEventListener("click", () => openSessionModal(s));
-    row.querySelector(".toggle").addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleSessionActive(s);
+    header.addEventListener("click", () => {
+      const nowExpanded = getExpandedCourseGroups();
+      if (nowExpanded.has(key)) nowExpanded.delete(key);
+      else nowExpanded.add(key);
+      setExpandedCourseGroups(nowExpanded);
+      renderSessionList();
     });
-    container.appendChild(row);
+
+    const children = document.createElement("div");
+    children.className = `course-group-children ${isOpen ? "" : "hidden"}`;
+    sorted.forEach((s) => children.appendChild(renderSessionRow(s, "child-row")));
+
+    group.appendChild(header);
+    group.appendChild(children);
+    container.appendChild(group);
   });
 }
 
