@@ -1,0 +1,406 @@
+/* Space theme — palette + an animated three-layer star field.
+   Originally sourced from a Uiverse.io community snippet (full-desktop
+   version ran ~2000 lines of box-shadow stars); regenerated here at a
+   much smaller star count and canvas size (500x1000) since this only
+   ever needs to fill a phone-sized viewport behind the app's cards. */
+
+[data-theme="starfield"] {
+  --bg: #090a0f;
+  --bg-elevated: #10131c;
+  --card-bg: rgba(16, 20, 32, 0.74);
+  --card-bg-soft: rgba(13, 17, 28, 0.6);
+  --border: #232a42;
+  --text: #eef1fb;
+  --text-dim: #8891b5;
+  --text-faint: #545e82;
+
+  --cyan: #5eead4;
+  --blue: #60a5fa;
+  --purple: #a78bfa;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+
+  --accent-gradient: linear-gradient(135deg, var(--blue), var(--cyan));
+}
+
+[data-theme="starfield"] body {
+  background-image: none;
+}
+
+.starfield-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+}
+
+#stars, #stars2, #stars3 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: transparent;
+}
+
+#stars {
+  width: 1px;
+  height: 1px;
+  box-shadow:
+    327px 114px #fff,
+    12px 759px #fff,
+    140px 250px #fff,
+    114px 142px #fff,
+    377px 104px #fff,
+    346px 758px #fff,
+    456px 558px #fff,
+    44px 604px #fff,
+    216px 32px #fff,
+    15px 95px #fff,
+    111px 238px #fff,
+    258px 616px #fff,
+    13px 574px #fff,
+    101px 733px #fff,
+    332px 718px #fff,
+    279px 429px #fff,
+    112px 459px #fff,
+    301px 284px #fff,
+    414px 890px #fff,
+    3px 777px #fff,
+    412px 163px #fff,
+    357px 432px #fff,
+    174px 284px #fff,
+    79px 220px #fff,
+    490px 781px #fff,
+    172px 104px #fff,
+    47px 389px #fff,
+    49px 367px #fff,
+    433px 352px #fff,
+    309px 270px #fff,
+    413px 44px #fff,
+    373px 470px #fff,
+    274px 127px #fff,
+    498px 944px #fff,
+    193px 80px #fff,
+    282px 300px #fff,
+    424px 643px #fff,
+    316px 906px #fff,
+    441px 370px #fff,
+    295px 196px #fff,
+    360px 71px #fff,
+    23px 677px #fff,
+    116px 791px #fff,
+    148px 81px #fff,
+    437px 238px #fff,
+    443px 103px #fff,
+    194px 284px #fff,
+    232px 650px #fff,
+    427px 373px #fff,
+    83px 379px #fff,
+    181px 214px #fff,
+    343px 273px #fff,
+    359px 959px #fff,
+    349px 663px #fff,
+    36px 623px #fff,
+    325px 175px #fff,
+    273px 746px #fff,
+    125px 167px #fff,
+    236px 388px #fff,
+    138px 947px #fff,
+    327px 704px #fff,
+    285px 224px #fff,
+    350px 332px #fff,
+    431px 786px #fff,
+    397px 57px #fff,
+    117px 841px #fff,
+    16px 824px #fff,
+    161px 410px #fff,
+    137px 67px #fff,
+    108px 935px #fff,
+    482px 580px #fff,
+    448px 735px #fff,
+    161px 217px #fff,
+    335px 511px #fff,
+    202px 905px #fff,
+    468px 658px #fff,
+    234px 146px #fff,
+    135px 142px #fff,
+    126px 762px #fff,
+    287px 551px #fff;
+  animation: starfieldDrift 50s linear infinite;
+}
+#stars:after {
+  content: " ";
+  position: absolute;
+  top: 1000px;
+  width: 1px;
+  height: 1px;
+  background: transparent;
+  box-shadow:
+    327px 114px #fff,
+    12px 759px #fff,
+    140px 250px #fff,
+    114px 142px #fff,
+    377px 104px #fff,
+    346px 758px #fff,
+    456px 558px #fff,
+    44px 604px #fff,
+    216px 32px #fff,
+    15px 95px #fff,
+    111px 238px #fff,
+    258px 616px #fff,
+    13px 574px #fff,
+    101px 733px #fff,
+    332px 718px #fff,
+    279px 429px #fff,
+    112px 459px #fff,
+    301px 284px #fff,
+    414px 890px #fff,
+    3px 777px #fff,
+    412px 163px #fff,
+    357px 432px #fff,
+    174px 284px #fff,
+    79px 220px #fff,
+    490px 781px #fff,
+    172px 104px #fff,
+    47px 389px #fff,
+    49px 367px #fff,
+    433px 352px #fff,
+    309px 270px #fff,
+    413px 44px #fff,
+    373px 470px #fff,
+    274px 127px #fff,
+    498px 944px #fff,
+    193px 80px #fff,
+    282px 300px #fff,
+    424px 643px #fff,
+    316px 906px #fff,
+    441px 370px #fff,
+    295px 196px #fff,
+    360px 71px #fff,
+    23px 677px #fff,
+    116px 791px #fff,
+    148px 81px #fff,
+    437px 238px #fff,
+    443px 103px #fff,
+    194px 284px #fff,
+    232px 650px #fff,
+    427px 373px #fff,
+    83px 379px #fff,
+    181px 214px #fff,
+    343px 273px #fff,
+    359px 959px #fff,
+    349px 663px #fff,
+    36px 623px #fff,
+    325px 175px #fff,
+    273px 746px #fff,
+    125px 167px #fff,
+    236px 388px #fff,
+    138px 947px #fff,
+    327px 704px #fff,
+    285px 224px #fff,
+    350px 332px #fff,
+    431px 786px #fff,
+    397px 57px #fff,
+    117px 841px #fff,
+    16px 824px #fff,
+    161px 410px #fff,
+    137px 67px #fff,
+    108px 935px #fff,
+    482px 580px #fff,
+    448px 735px #fff,
+    161px 217px #fff,
+    335px 511px #fff,
+    202px 905px #fff,
+    468px 658px #fff,
+    234px 146px #fff,
+    135px 142px #fff,
+    126px 762px #fff,
+    287px 551px #fff;
+}
+
+#stars2 {
+  width: 2px;
+  height: 2px;
+  box-shadow:
+    134px 764px #fff,
+    299px 438px #fff,
+    459px 597px #fff,
+    204px 370px #fff,
+    112px 141px #fff,
+    260px 505px #fff,
+    46px 773px #fff,
+    24px 881px #fff,
+    56px 156px #fff,
+    321px 163px #fff,
+    405px 696px #fff,
+    216px 610px #fff,
+    32px 394px #fff,
+    195px 610px #fff,
+    239px 541px #fff,
+    128px 994px #fff,
+    283px 881px #fff,
+    482px 11px #fff,
+    348px 738px #fff,
+    58px 698px #fff,
+    453px 549px #fff,
+    384px 273px #fff,
+    393px 656px #fff,
+    174px 114px #fff,
+    150px 445px #fff,
+    80px 464px #fff,
+    1px 976px #fff,
+    369px 896px #fff,
+    368px 269px #fff,
+    497px 512px #fff,
+    390px 182px #fff,
+    259px 934px #fff,
+    54px 891px #fff,
+    320px 305px #fff,
+    430px 654px #fff,
+    259px 623px #fff,
+    101px 156px #fff,
+    191px 780px #fff,
+    82px 552px #fff,
+    488px 797px #fff,
+    472px 543px #fff,
+    470px 0px #fff,
+    306px 331px #fff,
+    250px 19px #fff,
+    57px 951px #fff,
+    185px 899px #fff,
+    425px 826px #fff,
+    157px 245px #fff,
+    29px 246px #fff,
+    449px 580px #fff;
+  animation: starfieldDrift 100s linear infinite;
+}
+#stars2:after {
+  content: " ";
+  position: absolute;
+  top: 1000px;
+  width: 2px;
+  height: 2px;
+  background: transparent;
+  box-shadow:
+    134px 764px #fff,
+    299px 438px #fff,
+    459px 597px #fff,
+    204px 370px #fff,
+    112px 141px #fff,
+    260px 505px #fff,
+    46px 773px #fff,
+    24px 881px #fff,
+    56px 156px #fff,
+    321px 163px #fff,
+    405px 696px #fff,
+    216px 610px #fff,
+    32px 394px #fff,
+    195px 610px #fff,
+    239px 541px #fff,
+    128px 994px #fff,
+    283px 881px #fff,
+    482px 11px #fff,
+    348px 738px #fff,
+    58px 698px #fff,
+    453px 549px #fff,
+    384px 273px #fff,
+    393px 656px #fff,
+    174px 114px #fff,
+    150px 445px #fff,
+    80px 464px #fff,
+    1px 976px #fff,
+    369px 896px #fff,
+    368px 269px #fff,
+    497px 512px #fff,
+    390px 182px #fff,
+    259px 934px #fff,
+    54px 891px #fff,
+    320px 305px #fff,
+    430px 654px #fff,
+    259px 623px #fff,
+    101px 156px #fff,
+    191px 780px #fff,
+    82px 552px #fff,
+    488px 797px #fff,
+    472px 543px #fff,
+    470px 0px #fff,
+    306px 331px #fff,
+    250px 19px #fff,
+    57px 951px #fff,
+    185px 899px #fff,
+    425px 826px #fff,
+    157px 245px #fff,
+    29px 246px #fff,
+    449px 580px #fff;
+}
+
+#stars3 {
+  width: 3px;
+  height: 3px;
+  box-shadow:
+    484px 80px #fff,
+    43px 749px #fff,
+    248px 835px #fff,
+    35px 778px #fff,
+    272px 784px #fff,
+    64px 131px #fff,
+    337px 486px #fff,
+    484px 562px #fff,
+    84px 271px #fff,
+    270px 893px #fff,
+    310px 433px #fff,
+    493px 216px #fff,
+    475px 552px #fff,
+    386px 747px #fff,
+    353px 205px #fff,
+    365px 319px #fff,
+    204px 687px #fff,
+    332px 382px #fff,
+    224px 921px #fff,
+    264px 462px #fff,
+    61px 253px #fff,
+    115px 65px #fff,
+    173px 21px #fff,
+    301px 567px #fff,
+    117px 602px #fff;
+  animation: starfieldDrift 150s linear infinite;
+}
+#stars3:after {
+  content: " ";
+  position: absolute;
+  top: 1000px;
+  width: 3px;
+  height: 3px;
+  background: transparent;
+  box-shadow:
+    484px 80px #fff,
+    43px 749px #fff,
+    248px 835px #fff,
+    35px 778px #fff,
+    272px 784px #fff,
+    64px 131px #fff,
+    337px 486px #fff,
+    484px 562px #fff,
+    84px 271px #fff,
+    270px 893px #fff,
+    310px 433px #fff,
+    493px 216px #fff,
+    475px 552px #fff,
+    386px 747px #fff,
+    353px 205px #fff,
+    365px 319px #fff,
+    204px 687px #fff,
+    332px 382px #fff,
+    224px 921px #fff,
+    264px 462px #fff,
+    61px 253px #fff,
+    115px 65px #fff,
+    173px 21px #fff,
+    301px 567px #fff,
+    117px 602px #fff;
+}
+
+@keyframes starfieldDrift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-1000px); }
+}

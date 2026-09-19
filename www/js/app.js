@@ -33,6 +33,14 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+// Icons used in JS-generated markup (rest are static in index.html) —
+// pulls from the inline sprite defined at the top of <body>.
+const ICONS = {
+  pin: `<svg class="icon" aria-hidden="true"><use href="#icon-pin"></use></svg>`,
+  folder: `<svg class="icon" aria-hidden="true"><use href="#icon-folder"></use></svg>`,
+  chevron: `<svg class="icon" aria-hidden="true"><use href="#icon-chevron"></use></svg>`,
+};
+
 function getServerUrl() {
   return localStorage.getItem(STORAGE_KEYS.serverUrl) || "";
 }
@@ -686,7 +694,7 @@ function renderClassList() {
       </div>
       <div class="${courseClass}">${escapeHtml(c.course)}</div>
       <div class="class-meta">
-        ${c.room ? `<span>📍 ${escapeHtml(c.room)}</span>` : ""}
+        ${c.room ? `<span>${ICONS.pin} ${escapeHtml(c.room)}</span>` : ""}
         ${c.instructor_name ? `<span>${escapeHtml(c.instructor_name)}</span>` : ""}
       </div>
       ${c.instructor_email ? `<div class="class-meta"><a href="mailto:${escapeHtml(c.instructor_email)}">${escapeHtml(c.instructor_email)}</a></div>` : ""}
@@ -911,7 +919,7 @@ function openActionModal(c) {
   document.getElementById("actionModalTitle").textContent = c.course;
 
   const metaParts = [];
-  if (c.room) metaParts.push(`📍 ${escapeHtml(c.room)}`);
+  if (c.room) metaParts.push(`${ICONS.pin} ${escapeHtml(c.room)}`);
   if (c.instructor_name) metaParts.push(escapeHtml(c.instructor_name));
   document.getElementById("actionModalMeta").innerHTML = metaParts.map((p) => `<span>${p}</span>`).join("");
 
@@ -1173,8 +1181,8 @@ function renderSessionList() {
     const header = document.createElement("div");
     header.className = "course-group-header";
     header.innerHTML = `
-      <span class="course-group-chevron">›</span>
-      <span class="course-group-icon">📁</span>
+      <span class="course-group-chevron">${ICONS.chevron}</span>
+      <span class="course-group-icon">${ICONS.folder}</span>
       <div class="course-group-label">
         <div class="course-group-title">${escapeHtml(sorted[0].course)}</div>
         <div class="course-group-caption">${sorted.length} classes · ${escapeHtml(typesLabel)}</div>
@@ -1405,6 +1413,8 @@ function switchView(view) {
 // ---------------------------------------------------------------------------
 
 async function init() {
+  initTheme();
+
   renderDayTabs();
   renderClassList();
   renderEventList();
