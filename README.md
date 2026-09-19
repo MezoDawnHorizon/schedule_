@@ -5,7 +5,7 @@ no account, no server, no internet connection required — with an optional
 self-hosted backend if you want your schedule to sync across devices.
 
 Vanilla HTML/CSS/JS frontend packaged via [Capacitor](https://capacitorjs.com/),
-with a FastAPI + SQLite backend for sync.
+with an optional FastAPI + SQLite backend for sync.
 
 ## Features
 

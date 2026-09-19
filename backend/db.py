@@ -40,6 +40,7 @@ def init_db():
             day_of_week INTEGER NOT NULL,    -- 0=Sunday .. 6=Saturday
             start_time TEXT NOT NULL,        -- 'HH:MM' 24h
             end_time TEXT NOT NULL,
+            section TEXT,                    -- e.g. 'Section 3' / 'B02' — which of a professor's sections
             room TEXT,
             instructor_name TEXT,
             instructor_email TEXT,
@@ -112,9 +113,9 @@ def create_session(data: dict):
     conn = get_connection()
     cur = conn.execute(
         """
-        INSERT INTO sessions (course, type, day_of_week, start_time, end_time, room,
+        INSERT INTO sessions (course, type, day_of_week, start_time, end_time, section, room,
                                instructor_name, instructor_email, active, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             data["course"],
@@ -122,6 +123,7 @@ def create_session(data: dict):
             data["day_of_week"],
             data["start_time"],
             data["end_time"],
+            data.get("section"),
             data.get("room"),
             data.get("instructor_name"),
             data.get("instructor_email"),
@@ -144,7 +146,7 @@ def update_session(session_id: int, data: dict):
     conn.execute(
         """
         UPDATE sessions SET course=?, type=?, day_of_week=?, start_time=?, end_time=?,
-                             room=?, instructor_name=?, instructor_email=?, active=?,
+                             section=?, room=?, instructor_name=?, instructor_email=?, active=?,
                              updated_at=?
         WHERE id=?
         """,
@@ -154,6 +156,7 @@ def update_session(session_id: int, data: dict):
             merged["day_of_week"],
             merged["start_time"],
             merged["end_time"],
+            merged["section"],
             merged["room"],
             merged["instructor_name"],
             merged["instructor_email"],

@@ -690,7 +690,10 @@ function renderClassList() {
     card.innerHTML = `
       <div class="card-top-row">
         <span class="class-time">${formatTime(c.start_time)} – ${formatTime(c.end_time)}</span>
-        <span class="id-tag ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
+        <span class="card-top-tags">
+          ${c.section ? `<span class="section-tag">${escapeHtml(c.section)}</span>` : ""}
+          <span class="id-tag ${escapeHtml(c.type)}">${escapeHtml(c.type)}</span>
+        </span>
       </div>
       <div class="${courseClass}">${escapeHtml(c.course)}</div>
       <div class="class-meta">
@@ -913,6 +916,9 @@ function openActionModal(c) {
   actionContext = { sessionId: c.id, date: selectedDate, existingOverrideId: existing ? existing.id : null };
 
   document.getElementById("actionModalTime").textContent = `${formatTime(c.start_time)} – ${formatTime(c.end_time)}`;
+  const sectionTag = document.getElementById("actionModalSection");
+  sectionTag.textContent = c.section || "";
+  sectionTag.classList.toggle("hidden", !c.section);
   const typeTag = document.getElementById("actionModalType");
   typeTag.textContent = c.type;
   typeTag.className = `id-tag ${c.type}`;
@@ -1124,6 +1130,7 @@ function renderSessionRow(s, extraClass) {
     <div class="session-info">
       <div class="course-row">
         <span class="course">${escapeHtml(s.course)}</span>
+        ${s.section ? `<span class="section-tag">${escapeHtml(s.section)}</span>` : ""}
         <span class="id-tag ${escapeHtml(s.type)}">${escapeHtml(s.type)}</span>
       </div>
       <div class="meta">${DAY_NAMES_FULL[s.day_of_week]} ${formatTime(s.start_time)}–${formatTime(s.end_time)}${s.room ? " · " + escapeHtml(s.room) : ""}</div>
@@ -1274,6 +1281,7 @@ function openSessionModal(session) {
   document.getElementById("sessionIdInput").value = session ? session.id : "";
   document.getElementById("courseInput").value = session ? session.course : "";
   document.getElementById("typeInput").value = session ? session.type : "lecture";
+  document.getElementById("sectionInput").value = session ? session.section || "" : "";
   document.getElementById("dayInput").value = session ? session.day_of_week : "1";
   document.getElementById("startTimeInput").value = session ? session.start_time : "";
   document.getElementById("endTimeInput").value = session ? session.end_time : "";
@@ -1348,6 +1356,7 @@ function saveSessionFromModal() {
   const payload = {
     course: document.getElementById("courseInput").value.trim(),
     type: document.getElementById("typeInput").value,
+    section: document.getElementById("sectionInput").value.trim(),
     day_of_week: Number(document.getElementById("dayInput").value),
     start_time: document.getElementById("startTimeInput").value,
     end_time: document.getElementById("endTimeInput").value,

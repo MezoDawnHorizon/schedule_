@@ -191,6 +191,9 @@
           <option value="lab">Lab</option>
         </select>
       </label>
+      <label>Section (optional)
+        <input type="text" id="sectionInput" placeholder="e.g. Section 3 / B02" />
+      </label>
       <label>Day
         <select id="dayInput">
           <option value="0">Sunday</option>
@@ -276,7 +279,10 @@
       <div class="action-sheet-header">
         <div class="card-top-row">
           <span class="class-time" id="actionModalTime"></span>
-          <span class="id-tag" id="actionModalType"></span>
+          <span class="card-top-tags">
+            <span class="section-tag hidden" id="actionModalSection"></span>
+            <span class="id-tag" id="actionModalType"></span>
+          </span>
         </div>
         <h2 id="actionModalTitle">Class Actions</h2>
         <p class="class-meta" id="actionModalSubtitle"></p>

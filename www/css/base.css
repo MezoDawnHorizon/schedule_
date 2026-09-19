@@ -102,6 +102,17 @@ body {
   background: rgba(255, 255, 255, 0.02);
   display: inline-block;
 }
+.card-top-tags { display: flex; align-items: center; gap: 6px; }
+.section-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  display: inline-block;
+  white-space: nowrap;
+}
 .id-tag.lecture { color: var(--blue); border-color: rgba(59, 130, 246, 0.35); }
 .id-tag.tutorial { color: var(--purple); border-color: rgba(139, 92, 246, 0.35); }
 .id-tag.lab { color: var(--cyan); border-color: rgba(34, 211, 238, 0.35); }

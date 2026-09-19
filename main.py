@@ -50,6 +50,7 @@ class SessionIn(BaseModel):
     day_of_week: int  # 0=Sunday .. 6=Saturday
     start_time: str  # 'HH:MM'
     end_time: str
+    section: Optional[str] = None
     room: Optional[str] = None
     instructor_name: Optional[str] = None
     instructor_email: Optional[str] = None
@@ -62,6 +63,7 @@ class SessionUpdate(BaseModel):
     day_of_week: Optional[int] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    section: Optional[str] = None
     room: Optional[str] = None
     instructor_name: Optional[str] = None
     instructor_email: Optional[str] = None
