@@ -1,6 +1,6 @@
 # Schedule_
 
-An offline first class schedule app for Android. It works fully standalone —
+An offline-first class schedule app for Android. It works fully standalone —
 no account, no server, no internet connection required — with an optional
 self-hosted backend if you want your schedule to sync across devices.
 
@@ -39,6 +39,50 @@ The schedule is built from three kinds of records:
 - **Manage tab** — add, edit, or deactivate classes and events.
 - **Activity tab** — every override and event, newest first. Tap an entry
   to jump to that date or open it for editing.
+
+## Reminders
+
+Local notifications, scheduled entirely on-device — no server or
+connectivity involved. Turn them on in Settings.
+
+- **Lead times** — pick any number of reminder times (a set of presets,
+  plus a custom minutes/hours/days field) as your app-wide default. A
+  class or event fires one notification per lead time you've set for it.
+- **Per-class/event overrides** — open any class or event's edit form and
+  flip on "Custom reminders" to give that one item its own lead times
+  instead of the app-wide default — e.g. a 1-day-before reminder just for
+  a specific exam, on top of your usual 15-minutes-before default
+  elsewhere.
+- **Sound** — one channel per file in `android/app/src/main/res/raw/`, plus
+  Default (system sound) and Silent (vibrate only). Pick whichever channel
+  you want in Settings → Notification sound.
+
+### Adding notification sounds
+
+Drop `.wav`/`.mp3`/`.ogg` files into `android/app/src/main/res/raw/`
+(create that folder if it doesn't exist yet — Android Studio: right-click
+`res` → New → Android Resource Directory → type `raw`). Then list them in
+`NOTIF_CHANNELS` near the top of `www/js/app.js`, one entry per file:
+
+```js
+{ id: "reminders_my_sound", name: "My Sound", importance: 4, sound: "my_sound_file.wav", vibration: true },
+```
+
+- `id` — anything unique, prefixed `reminders_` by convention
+- `name` — what shows in the Settings dropdown
+- `sound` — the filename exactly as it sits in `res/raw/`, extension included
+- Android resource filenames: lowercase letters, numbers, and underscores
+  only — no spaces, hyphens, or capital letters, so name your files that
+  way before adding them
+- If a listed sound file is missing, that channel just plays no sound
+  rather than erroring
+
+**One Android gotcha:** a channel's sound is locked in the first time
+that specific channel `id` is ever created on a device — editing an
+*existing* channel's sound in code later won't retroactively change it
+for anyone who already has the app installed with that channel id. Only
+matters if you're reusing an id; a brand new `id` always gets created
+fresh, no reinstall needed.
 
 ## Offline-first sync
 
@@ -113,6 +157,37 @@ Open the ⚙ Settings screen in the app and enter:
 - **API Key** — the same value as `SCHEDULE_API_KEY`
 
 Both are stored on-device and editable later from the same screen.
+
+### Migrating an existing database
+
+If you have a `schedule.db` from before the `source`, `section`, or
+`reminder_minutes` columns existed, `init_db()` won't retrofit them onto
+existing tables. From your project folder (Python's built-in `sqlite3`
+module — no install needed):
+
+```bash
+python3 -c "
+import sqlite3
+conn = sqlite3.connect('schedule.db')
+def add_column(table, column, coltype):
+    cols = [r[1] for r in conn.execute(f'PRAGMA table_info({table})')]
+    if column not in cols:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {coltype}')
+        print(f'added {column} to {table}')
+add_column('overrides', 'source', \"TEXT NOT NULL DEFAULT 'app'\")
+add_column('events', 'source', \"TEXT NOT NULL DEFAULT 'app'\")
+add_column('sessions', 'section', 'TEXT')
+add_column('sessions', 'reminder_minutes', 'TEXT')
+add_column('events', 'reminder_minutes', 'TEXT')
+conn.commit()
+conn.close()
+"
+```
+
+Safe to run more than once — it only adds a column if it's missing.
+
+Or, if you don't care about existing data, delete `schedule.db` and let
+it recreate on next startup.
 
 ## API reference
 

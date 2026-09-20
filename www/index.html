@@ -137,13 +137,24 @@
         </div>
         <button id="notifToggle" class="toggle" aria-label="Toggle reminders"></button>
       </div>
-      <label>Remind me
-        <select id="notifLeadInput">
-          <option value="0">At the time</option>
-          <option value="5">5 minutes before</option>
-          <option value="15">15 minutes before</option>
-          <option value="30">30 minutes before</option>
-        </select>
+
+      <div class="settings-row-label" style="margin-bottom:8px">Default reminder times</div>
+      <div class="lead-editor" id="notifLeadEditor">
+        <div class="lead-chips" id="notifLeadChips"></div>
+        <div class="lead-presets" id="notifLeadPresets"></div>
+        <div class="lead-custom-row">
+          <input type="number" id="notifLeadCustomValue" min="1" placeholder="Custom" />
+          <select id="notifLeadCustomUnit">
+            <option value="1">min</option>
+            <option value="60">hr</option>
+            <option value="1440">day</option>
+          </select>
+          <button type="button" id="notifLeadCustomAdd" class="ghost-btn">Add</button>
+        </div>
+      </div>
+
+      <label>Notification sound
+        <select id="notifSoundInput"></select>
       </label>
 
       <div class="settings-section-title">Backup</div>
@@ -222,6 +233,28 @@
       <label>Instructor Email
         <input type="email" id="instructorEmailInput" placeholder="e.g. a.hassan@nu.edu.eg" />
       </label>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Custom reminders</div>
+          <div class="settings-row-hint">Off uses your default reminder settings</div>
+        </div>
+        <button type="button" id="sessionCustomNotifToggle" class="toggle" aria-label="Toggle custom reminders"></button>
+      </div>
+      <div class="lead-editor hidden" id="sessionLeadEditor">
+        <div class="lead-chips" id="sessionLeadChips"></div>
+        <div class="lead-presets" id="sessionLeadPresets"></div>
+        <div class="lead-custom-row">
+          <input type="number" id="sessionLeadCustomValue" min="1" placeholder="Custom" />
+          <select id="sessionLeadCustomUnit">
+            <option value="1">min</option>
+            <option value="60">hr</option>
+            <option value="1440">day</option>
+          </select>
+          <button type="button" id="sessionLeadCustomAdd" class="ghost-btn">Add</button>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button id="deleteSessionBtn" class="danger-btn hidden">Delete</button>
         <button id="sessionCancelBtn" class="ghost-btn">Cancel</button>
@@ -263,6 +296,28 @@
       <label>Note (optional)
         <input type="text" id="eventNoteInput" placeholder="e.g. Bring calculator" />
       </label>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Custom reminders</div>
+          <div class="settings-row-hint">Off uses your default reminder settings</div>
+        </div>
+        <button type="button" id="eventCustomNotifToggle" class="toggle" aria-label="Toggle custom reminders"></button>
+      </div>
+      <div class="lead-editor hidden" id="eventLeadEditor">
+        <div class="lead-chips" id="eventLeadChips"></div>
+        <div class="lead-presets" id="eventLeadPresets"></div>
+        <div class="lead-custom-row">
+          <input type="number" id="eventLeadCustomValue" min="1" placeholder="Custom" />
+          <select id="eventLeadCustomUnit">
+            <option value="1">min</option>
+            <option value="60">hr</option>
+            <option value="1440">day</option>
+          </select>
+          <button type="button" id="eventLeadCustomAdd" class="ghost-btn">Add</button>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button id="deleteEventBtn" class="danger-btn hidden">Delete</button>
         <button id="eventCancelBtn" class="ghost-btn">Cancel</button>

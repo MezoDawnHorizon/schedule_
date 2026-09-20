@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   outbox: "schedule_outbox",
   notifyEnabled: "schedule_notify_enabled",
   notifyLead: "schedule_notify_lead",
+  notifySound: "schedule_notify_sound",
   notifyIds: "schedule_notify_ids",
   notifyFingerprint: "schedule_notify_fingerprint",
   welcomeDismissed: "schedule_welcome_dismissed",
@@ -39,6 +40,7 @@ const ICONS = {
   pin: `<svg class="icon" aria-hidden="true"><use href="#icon-pin"></use></svg>`,
   folder: `<svg class="icon" aria-hidden="true"><use href="#icon-folder"></use></svg>`,
   chevron: `<svg class="icon" aria-hidden="true"><use href="#icon-chevron"></use></svg>`,
+  x: `<svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>`,
 };
 
 function getServerUrl() {
@@ -251,6 +253,120 @@ async function attemptSync() {
 // involved; this only runs when installed as the native Android app.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Reminder lead-time editor — one small reusable widget wired up by ID
+// prefix, used for the global default (prefix "notif") and per-item
+// overrides (prefix "session" / "event"). Each modal gets its own instance
+// each time it opens; call .getValues() when saving.
+// ---------------------------------------------------------------------------
+
+const LEAD_PRESETS = [5, 15, 30, 60, 1440];
+
+function formatLeadLabel(minutes) {
+  if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440}d before`;
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60}h before`;
+  return `${minutes}m before`;
+}
+
+function createLeadEditor(prefix, initialMinutes) {
+  let values = [...new Set(initialMinutes)].sort((a, b) => a - b);
+
+  const chipsEl = document.getElementById(`${prefix}LeadChips`);
+  const presetsEl = document.getElementById(`${prefix}LeadPresets`);
+  const customValueEl = document.getElementById(`${prefix}LeadCustomValue`);
+  const customUnitEl = document.getElementById(`${prefix}LeadCustomUnit`);
+  const customAddEl = document.getElementById(`${prefix}LeadCustomAdd`);
+
+  function renderChips() {
+    chipsEl.innerHTML = values.length
+      ? values
+          .map(
+            (m) => `
+        <span class="lead-chip">
+          ${formatLeadLabel(m)}
+          <button type="button" class="lead-chip-remove" data-min="${m}" aria-label="Remove">${ICONS.x}</button>
+        </span>`
+          )
+          .join("")
+      : `<span class="lead-chips-empty">No reminders</span>`;
+    chipsEl.querySelectorAll(".lead-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        values = values.filter((m) => m !== Number(btn.dataset.min));
+        renderChips();
+        renderPresets();
+      });
+    });
+  }
+
+  function renderPresets() {
+    presetsEl.innerHTML = LEAD_PRESETS.map(
+      (m) => `<button type="button" class="lead-preset-btn ${values.includes(m) ? "active" : ""}" data-min="${m}">${formatLeadLabel(m)}</button>`
+    ).join("");
+    presetsEl.querySelectorAll(".lead-preset-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const m = Number(btn.dataset.min);
+        values = values.includes(m) ? values.filter((v) => v !== m) : [...values, m].sort((a, b) => a - b);
+        renderChips();
+        renderPresets();
+      });
+    });
+  }
+
+  // .onclick (not addEventListener) on purpose: these three inputs are
+  // static, persistent DOM elements re-used every time a modal opens, and
+  // this factory runs again on every open — addEventListener would stack a
+  // new handler on top of the old one each time.
+  customAddEl.onclick = () => {
+    const raw = Number(customValueEl.value);
+    const unit = Number(customUnitEl.value);
+    if (!raw || raw <= 0) return;
+    const minutes = raw * unit;
+    if (!values.includes(minutes)) {
+      values = [...values, minutes].sort((a, b) => a - b);
+      renderChips();
+      renderPresets();
+    }
+    customValueEl.value = "";
+  };
+
+  renderChips();
+  renderPresets();
+
+  return { getValues: () => values };
+}
+
+// Android notification channels — each controls sound/vibration/urgency for
+// notifications posted to it. Files live in
+// android/app/src/main/res/raw/ — if you add/rename files there, update
+// the "sound" filenames below to match exactly (case-sensitive).
+const NOTIF_CHANNELS = [
+  { id: "reminders_default", name: "Default", importance: 4, vibration: true },
+  { id: "reminders_silent", name: "Silent", importance: 2, vibration: false },
+  { id: "reminders_correct_answer", name: "Correct Answer Tone", importance: 4, sound: "mixkit_correct_answer_tone_2870.wav", vibration: true },
+  { id: "reminders_dry_pop_up", name: "Dry Pop Up", importance: 4, sound: "mixkit_dry_pop_up_notification_alert_2356.wav", vibration: true },
+  { id: "reminders_gaming_lock", name: "Gaming Lock", importance: 4, sound: "mixkit_gaming_lock_2848.wav", vibration: true },
+  { id: "reminders_interface_select", name: "Interface Select", importance: 4, sound: "mixkit_interface_option_select_2573.wav", vibration: true },
+  { id: "reminders_long_pop", name: "Long Pop", importance: 4, sound: "mixkit_long_pop_2358.wav", vibration: true },
+  { id: "reminders_magic_ring", name: "Magic Ring", importance: 5, sound: "mixkit_magic_notification_ring_2344.wav", vibration: true },
+  { id: "reminders_sci_fi_confirm", name: "Sci-Fi Confirm", importance: 4, sound: "mixkit_sci_fi_confirmation_914.wav", vibration: true },
+  { id: "reminders_interface_back", name: "Interface Back", importance: 4, sound: "mixkit_software_interface_back_2575.wav", vibration: true },
+  { id: "reminders_interface_remove", name: "Interface Remove", importance: 4, sound: "mixkit_software_interface_remove_2576.wav", vibration: true },
+  { id: "reminders_interface_start", name: "Interface Start", importance: 4, sound: "mixkit_software_interface_start_2574.wav", vibration: true },
+];
+
+async function ensureNotifChannels() {
+  const plugin = getNotifPlugin();
+  if (!plugin) return;
+  for (const channel of NOTIF_CHANNELS) {
+    try {
+      await plugin.createChannel(channel);
+    } catch (err) {
+      // channel already exists with these settings, or platform doesn't
+      // support channels (iOS) — either way, nothing to do
+    }
+  }
+}
+
 function getNotifPlugin() {
   return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
 }
@@ -265,20 +381,36 @@ function isNotifSupported() {
 }
 
 function getNotifPrefs() {
+  let leadMinutes;
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.notifyLead) || "null");
+    leadMinutes = Array.isArray(stored) ? stored : null;
+  } catch (err) {
+    leadMinutes = null;
+  }
+  if (!leadMinutes) {
+    // Migrate from the old single-value format (a plain number string), or
+    // fall back to a sensible default.
+    const old = Number(localStorage.getItem(STORAGE_KEYS.notifyLead));
+    leadMinutes = old > 0 ? [old] : [15];
+  }
   return {
     enabled: localStorage.getItem(STORAGE_KEYS.notifyEnabled) === "1",
-    leadMinutes: Number(localStorage.getItem(STORAGE_KEYS.notifyLead) || "15"),
+    leadMinutes,
+    sound: localStorage.getItem(STORAGE_KEYS.notifySound) || "reminders_default",
   };
 }
 
-function setNotifPrefs(enabled, leadMinutes) {
+function setNotifPrefs(enabled, leadMinutes, sound) {
   localStorage.setItem(STORAGE_KEYS.notifyEnabled, enabled ? "1" : "0");
-  localStorage.setItem(STORAGE_KEYS.notifyLead, String(leadMinutes));
+  localStorage.setItem(STORAGE_KEYS.notifyLead, JSON.stringify(leadMinutes));
+  if (sound) localStorage.setItem(STORAGE_KEYS.notifySound, sound);
 }
 
 async function ensureNotifPermission() {
   const plugin = getNotifPlugin();
   if (!plugin) return false;
+  await ensureNotifChannels();
   try {
     const status = await plugin.checkPermissions();
     if (status.display === "granted") return true;
@@ -316,7 +448,22 @@ function hashToId(str) {
 
 const NOTIF_WINDOW_DAYS = 7;
 
-function computeUpcomingNotifications(cache, leadMinutes) {
+function effectiveLeadMinutes(item, defaultLeadMinutes) {
+  // reminder_minutes is a JSON-string on the item ("[15,60]"), empty
+  // string/null meaning "use the app default" — see main.py/db.py for why
+  // it's stored as an opaque string rather than a real array.
+  if (item.reminder_minutes) {
+    try {
+      const custom = JSON.parse(item.reminder_minutes);
+      if (Array.isArray(custom)) return custom;
+    } catch (err) {
+      // malformed — fall through to default
+    }
+  }
+  return defaultLeadMinutes;
+}
+
+function computeUpcomingNotifications(cache, prefs) {
   const notifications = [];
   const now = new Date();
 
@@ -327,27 +474,33 @@ function computeUpcomingNotifications(cache, leadMinutes) {
 
     resolveScheduleForDate(dateStr, cache).forEach((c) => {
       if (c.status === "cancelled" || c.status === "moved_away") return;
-      const at = new Date(`${dateStr}T${c.start_time}:00`);
-      at.setMinutes(at.getMinutes() - leadMinutes);
-      if (at <= now) return;
-      notifications.push({
-        id: hashToId(`class-${c.id}-${dateStr}`),
-        title: `${c.course} · ${c.type}`,
-        body: `${formatTime(c.start_time)}${c.room ? " · " + c.room : ""}`,
-        schedule: { at, allowWhileIdle: true },
+      effectiveLeadMinutes(c, prefs.leadMinutes).forEach((leadMinutes) => {
+        const at = new Date(`${dateStr}T${c.start_time}:00`);
+        at.setMinutes(at.getMinutes() - leadMinutes);
+        if (at <= now) return;
+        notifications.push({
+          id: hashToId(`class-${c.id}-${dateStr}-${leadMinutes}`),
+          title: `${c.course} · ${c.type}`,
+          body: `${formatTime(c.start_time)}${c.room ? " · " + c.room : ""}`,
+          channelId: prefs.sound,
+          schedule: { at, allowWhileIdle: true },
+        });
       });
     });
 
     resolveEventsForDate(dateStr, cache).forEach((e) => {
       if (!e.start_time) return;
-      const at = new Date(`${dateStr}T${e.start_time}:00`);
-      at.setMinutes(at.getMinutes() - leadMinutes);
-      if (at <= now) return;
-      notifications.push({
-        id: hashToId(`event-${e.id}-${dateStr}`),
-        title: e.title,
-        body: `${formatTime(e.start_time)}${e.course ? " · " + e.course : ""}`,
-        schedule: { at, allowWhileIdle: true },
+      effectiveLeadMinutes(e, prefs.leadMinutes).forEach((leadMinutes) => {
+        const at = new Date(`${dateStr}T${e.start_time}:00`);
+        at.setMinutes(at.getMinutes() - leadMinutes);
+        if (at <= now) return;
+        notifications.push({
+          id: hashToId(`event-${e.id}-${dateStr}-${leadMinutes}`),
+          title: e.title,
+          body: `${formatTime(e.start_time)}${e.course ? " · " + e.course : ""}`,
+          channelId: prefs.sound,
+          schedule: { at, allowWhileIdle: true },
+        });
       });
     });
   }
@@ -361,14 +514,14 @@ async function scheduleUpcomingNotificationsIfEnabled() {
 
   const cache = getCache();
   // Cheap guard: skip the native reschedule call if nothing that affects
-  // the schedule has changed since we last computed this. Any local
-  // mutation or successful sync changes this fingerprint.
-  const fingerprint = JSON.stringify(cache);
+  // the schedule OR the reminder settings has changed since we last
+  // computed this.
+  const fingerprint = JSON.stringify({ cache, prefs });
   if (fingerprint === localStorage.getItem(STORAGE_KEYS.notifyFingerprint)) return;
 
   const plugin = getNotifPlugin();
   const oldIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.notifyIds) || "[]");
-  const notifications = computeUpcomingNotifications(cache, prefs.leadMinutes);
+  const notifications = computeUpcomingNotifications(cache, prefs);
 
   try {
     if (oldIds.length > 0) {
@@ -851,6 +1004,10 @@ function saveEventFromModal() {
     end_time: document.getElementById("eventEndTimeInput").value || null,
     course: document.getElementById("eventCourseInput").value.trim(),
     note: document.getElementById("eventNoteInput").value.trim(),
+    reminder_minutes:
+      document.getElementById("eventCustomNotifToggle").classList.contains("on") && eventLeadEditorInstance
+        ? JSON.stringify(eventLeadEditorInstance.getValues())
+        : "",
   };
   if (!payload.title || !payload.date || !payload.start_time) {
     alert("Title, date, and start time are required.");
@@ -885,6 +1042,8 @@ function deleteEventFromModal() {
   attemptSync();
 }
 
+let eventLeadEditorInstance = null;
+
 function openEventModal(event) {
   document.getElementById("eventModalTitle").textContent = event ? "Edit Event" : "Add Event";
   document.getElementById("eventIdInput").value = event ? event.id : "";
@@ -896,6 +1055,20 @@ function openEventModal(event) {
   document.getElementById("eventCourseInput").value = event ? event.course || "" : "";
   document.getElementById("eventNoteInput").value = event ? event.note || "" : "";
   document.getElementById("deleteEventBtn").classList.toggle("hidden", !event);
+
+  const hasCustomReminders = !!(event && event.reminder_minutes);
+  document.getElementById("eventCustomNotifToggle").classList.toggle("on", hasCustomReminders);
+  document.getElementById("eventLeadEditor").classList.toggle("hidden", !hasCustomReminders);
+  let initialLead = getNotifPrefs().leadMinutes;
+  if (hasCustomReminders) {
+    try {
+      initialLead = JSON.parse(event.reminder_minutes);
+    } catch (err) {
+      // malformed — fall back to the default set above
+    }
+  }
+  eventLeadEditorInstance = createLeadEditor("event", initialLead);
+
   document.getElementById("eventModal").classList.remove("hidden");
 }
 function closeEventModal() {
@@ -1254,17 +1427,23 @@ function updateSyncStatus() {
   el.textContent = text;
 }
 
+let notifLeadEditorInstance = null;
+
 function openSettingsModal() {
   document.getElementById("serverUrlInput").value = getServerUrl();
   document.getElementById("apiKeyInput").value = getApiKey();
 
   const prefs = getNotifPrefs();
   document.getElementById("notifToggle").classList.toggle("on", prefs.enabled);
-  document.getElementById("notifLeadInput").value = String(prefs.leadMinutes);
+  const soundSelect = document.getElementById("notifSoundInput");
+  soundSelect.innerHTML = NOTIF_CHANNELS.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  soundSelect.value = prefs.sound;
+  notifLeadEditorInstance = createLeadEditor("notif", prefs.leadMinutes);
+
   const notifRow = document.getElementById("notifSettingsRow");
   const notifSupported = isNotifSupported();
   document.getElementById("notifToggle").disabled = !notifSupported;
-  document.getElementById("notifLeadInput").disabled = !notifSupported;
+  document.getElementById("notifSoundInput").disabled = !notifSupported;
   notifRow.classList.toggle("disabled", !notifSupported);
   document.getElementById("notifHint").textContent = notifSupported
     ? ""
@@ -1275,6 +1454,8 @@ function openSettingsModal() {
 function closeSettingsModal() {
   document.getElementById("settingsModal").classList.add("hidden");
 }
+
+let sessionLeadEditorInstance = null;
 
 function openSessionModal(session) {
   document.getElementById("sessionModalTitle").textContent = session ? "Edit Class" : "Add Class";
@@ -1289,6 +1470,20 @@ function openSessionModal(session) {
   document.getElementById("instructorNameInput").value = session ? session.instructor_name || "" : "";
   document.getElementById("instructorEmailInput").value = session ? session.instructor_email || "" : "";
   document.getElementById("deleteSessionBtn").classList.toggle("hidden", !session);
+
+  const hasCustomReminders = !!(session && session.reminder_minutes);
+  document.getElementById("sessionCustomNotifToggle").classList.toggle("on", hasCustomReminders);
+  document.getElementById("sessionLeadEditor").classList.toggle("hidden", !hasCustomReminders);
+  let initialLead = getNotifPrefs().leadMinutes;
+  if (hasCustomReminders) {
+    try {
+      initialLead = JSON.parse(session.reminder_minutes);
+    } catch (err) {
+      // malformed — fall back to the default set above
+    }
+  }
+  sessionLeadEditorInstance = createLeadEditor("session", initialLead);
+
   document.getElementById("sessionModal").classList.remove("hidden");
 }
 function closeSessionModal() {
@@ -1363,6 +1558,10 @@ function saveSessionFromModal() {
     room: document.getElementById("roomInput").value.trim(),
     instructor_name: document.getElementById("instructorNameInput").value.trim(),
     instructor_email: document.getElementById("instructorEmailInput").value.trim(),
+    reminder_minutes:
+      document.getElementById("sessionCustomNotifToggle").classList.contains("on") && sessionLeadEditorInstance
+        ? JSON.stringify(sessionLeadEditorInstance.getValues())
+        : "",
   };
   if (!payload.course || !payload.start_time || !payload.end_time) {
     alert("Course, start time, and end time are required.");
@@ -1423,6 +1622,7 @@ function switchView(view) {
 
 async function init() {
   initTheme();
+  if (isNotifSupported()) ensureNotifChannels();
 
   renderDayTabs();
   renderClassList();
@@ -1450,17 +1650,28 @@ async function init() {
   document.getElementById("notifToggle").addEventListener("click", () => {
     document.getElementById("notifToggle").classList.toggle("on");
   });
+  document.getElementById("sessionCustomNotifToggle").addEventListener("click", () => {
+    const toggle = document.getElementById("sessionCustomNotifToggle");
+    toggle.classList.toggle("on");
+    document.getElementById("sessionLeadEditor").classList.toggle("hidden", !toggle.classList.contains("on"));
+  });
+  document.getElementById("eventCustomNotifToggle").addEventListener("click", () => {
+    const toggle = document.getElementById("eventCustomNotifToggle");
+    toggle.classList.toggle("on");
+    document.getElementById("eventLeadEditor").classList.toggle("hidden", !toggle.classList.contains("on"));
+  });
   document.getElementById("settingsSaveBtn").addEventListener("click", async () => {
     const url = document.getElementById("serverUrlInput").value.trim();
     const key = document.getElementById("apiKeyInput").value.trim();
 
     const notifEnabled = document.getElementById("notifToggle").classList.contains("on");
-    const notifLead = Number(document.getElementById("notifLeadInput").value);
-    setNotifPrefs(notifEnabled, notifLead);
+    const notifLead = notifLeadEditorInstance ? notifLeadEditorInstance.getValues() : [15];
+    const notifSound = document.getElementById("notifSoundInput").value;
+    setNotifPrefs(notifEnabled, notifLead, notifSound);
     if (notifEnabled) {
       const granted = await ensureNotifPermission();
       if (!granted) {
-        setNotifPrefs(false, notifLead);
+        setNotifPrefs(false, notifLead, notifSound);
         document.getElementById("notifToggle").classList.remove("on");
         alert("Reminders need notification permission — allow it in Android Settings to turn this on.");
       }

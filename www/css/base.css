@@ -552,6 +552,79 @@ body {
 .settings-row-hint { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
 .settings-row.disabled { opacity: 0.5; }
 
+/* ---------- Reminder lead-time editor (chips + presets + custom add) ---------- */
+.lead-editor { margin-bottom: 16px; }
+
+.lead-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 26px; }
+.lead-chips-empty { font-size: 12px; color: var(--text-faint); }
+
+.lead-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 6px 4px 10px;
+}
+.lead-chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lead-chip-remove .icon { width: 0.8em; height: 0.8em; }
+
+.lead-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.lead-preset-btn {
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.lead-preset-btn.active {
+  color: var(--blue);
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.lead-custom-row { display: flex; gap: 8px; align-items: center; }
+.modal-card .lead-custom-row input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  display: block;
+  margin-top: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 9px 10px;
+  font-size: 13px;
+}
+.modal-card .lead-custom-row select {
+  flex: 0 0 auto;
+  width: auto;
+  display: block;
+  margin-top: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 9px 8px;
+  font-size: 13px;
+}
+.lead-custom-row .ghost-btn { padding: 9px 14px; font-size: 13px; flex: 0 0 auto; }
+
 /* ---------- Modals ---------- */
 .modal {
   position: fixed;

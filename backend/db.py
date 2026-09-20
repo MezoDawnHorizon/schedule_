@@ -45,6 +45,7 @@ def init_db():
             instructor_name TEXT,
             instructor_email TEXT,
             active INTEGER NOT NULL DEFAULT 1,
+            reminder_minutes TEXT,           -- JSON array string e.g. '[15,60]', or NULL/'' = use app default
             updated_at TEXT NOT NULL
         );
 
@@ -72,6 +73,7 @@ def init_db():
             course TEXT,                     -- optional free-text link, e.g. 'MATH113'
             note TEXT,
             source TEXT NOT NULL DEFAULT 'app',  -- 'app' or 'agent' — who made this change
+            reminder_minutes TEXT,           -- JSON array string e.g. '[15,60]', or NULL/'' = use app default
             updated_at TEXT NOT NULL
         );
         """
@@ -114,8 +116,8 @@ def create_session(data: dict):
     cur = conn.execute(
         """
         INSERT INTO sessions (course, type, day_of_week, start_time, end_time, section, room,
-                               instructor_name, instructor_email, active, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               instructor_name, instructor_email, active, reminder_minutes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             data["course"],
@@ -128,6 +130,7 @@ def create_session(data: dict):
             data.get("instructor_name"),
             data.get("instructor_email"),
             int(data.get("active", 1)),
+            data.get("reminder_minutes"),
             _now(),
         ),
     )
@@ -147,7 +150,7 @@ def update_session(session_id: int, data: dict):
         """
         UPDATE sessions SET course=?, type=?, day_of_week=?, start_time=?, end_time=?,
                              section=?, room=?, instructor_name=?, instructor_email=?, active=?,
-                             updated_at=?
+                             reminder_minutes=?, updated_at=?
         WHERE id=?
         """,
         (
@@ -161,6 +164,7 @@ def update_session(session_id: int, data: dict):
             merged["instructor_name"],
             merged["instructor_email"],
             int(merged["active"]),
+            merged["reminder_minutes"],
             _now(),
             session_id,
         ),
@@ -292,8 +296,8 @@ def create_event(data: dict):
     conn = get_connection()
     cur = conn.execute(
         """
-        INSERT INTO events (title, date, start_time, end_time, category, course, note, source, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events (title, date, start_time, end_time, category, course, note, source, reminder_minutes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             data["title"],
@@ -304,6 +308,7 @@ def create_event(data: dict):
             data.get("course"),
             data.get("note"),
             data.get("source", "app"),
+            data.get("reminder_minutes"),
             _now(),
         ),
     )
@@ -322,7 +327,7 @@ def update_event(event_id: int, data: dict):
     conn.execute(
         """
         UPDATE events SET title=?, date=?, start_time=?, end_time=?, category=?,
-                           course=?, note=?, source=?, updated_at=?
+                           course=?, note=?, source=?, reminder_minutes=?, updated_at=?
         WHERE id=?
         """,
         (
@@ -334,6 +339,7 @@ def update_event(event_id: int, data: dict):
             merged["course"],
             merged["note"],
             merged["source"],
+            merged["reminder_minutes"],
             _now(),
             event_id,
         ),

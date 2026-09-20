@@ -55,6 +55,11 @@ class SessionIn(BaseModel):
     instructor_name: Optional[str] = None
     instructor_email: Optional[str] = None
     active: Optional[bool] = True
+    # JSON-encoded array of custom reminder lead times in minutes, e.g.
+    # "[15,60]". null/omitted means "use the app's default reminder
+    # settings" rather than "no reminders" — the client tells the
+    # difference, this field is just an opaque string to the backend.
+    reminder_minutes: Optional[str] = None
 
 
 class SessionUpdate(BaseModel):
@@ -68,6 +73,7 @@ class SessionUpdate(BaseModel):
     instructor_name: Optional[str] = None
     instructor_email: Optional[str] = None
     active: Optional[bool] = None
+    reminder_minutes: Optional[str] = None
 
 
 class OverrideIn(BaseModel):
@@ -101,6 +107,7 @@ class EventIn(BaseModel):
     course: Optional[str] = None
     note: Optional[str] = None
     source: Optional[str] = "app"  # 'app' or 'agent'
+    reminder_minutes: Optional[str] = None  # see SessionIn — JSON string or ""
 
 
 class EventUpdate(BaseModel):
@@ -112,6 +119,7 @@ class EventUpdate(BaseModel):
     course: Optional[str] = None
     note: Optional[str] = None
     source: Optional[str] = None
+    reminder_minutes: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -267,4 +275,4 @@ if os.path.isdir("www"):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
