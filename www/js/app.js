@@ -568,6 +568,14 @@ async function exportData() {
   const Share = isNative && window.Capacitor.Plugins.Share;
 
   if (Filesystem && Share) {
+    // No plugin lets us skip straight to Drive without native code — this
+    // is the plain, no-native-code path, so the important part is making
+    // sure the person knows what to tap once the sheet opens.
+    const proceed = confirm(
+      "Next, choose Google Drive from the list — that way you can find and " +
+        "restore this backup later from any device, even a new phone."
+    );
+    if (!proceed) return;
     try {
       const result = await Filesystem.writeFile({
         path: filename,
@@ -575,7 +583,11 @@ async function exportData() {
         directory: "CACHE",
         encoding: "utf8",
       });
-      await Share.share({ title: "Schedule backup", url: result.uri });
+      await Share.share({
+        title: "Schedule backup",
+        dialogTitle: "Save backup to Google Drive",
+        url: result.uri,
+      });
       return;
     } catch (err) {
       alert("Couldn't export: " + (err && err.message ? err.message : err));

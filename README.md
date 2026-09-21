@@ -1,6 +1,6 @@
 # Schedule_
 
-An offline-first class schedule app for Android. It works fully standalone —
+An offline first class schedule app for Android. It works fully standalone —
 no account, no server, no internet connection required — with an optional
 self-hosted backend if you want your schedule to sync across devices.
 
